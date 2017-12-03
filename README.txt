@@ -1,31 +1,257 @@
-Dimension by HTML5 UP
-html5up.net | @ajlkn
-Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+---
+title: "Twitter Analytics Using R"
+author: "Alyssa James"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+---
 
 
-This is Dimension, a fun little one-pager with modal-ized (is that a word?) "pages"
-and a cool depth effect (click on a menu item to see what I mean). Simple, fully
-responsive, and kitted out with all the usual pre-styled elements you'd expect.
-Hope you dig it :)
+##Install Packages
+```{r}
+if (!require(twitteR)) {install.packages("twitteR")}
+if (!require(ROAuth)) {install.packages("ROAuth")}
+if (!require(plyr)) {install.packages("plyr")}
+if (!require(dplyr)) {install.packages("dplyr")}
+if (!require(stringr)) {install.packages("stringr")}
+if (!require(ggplot2)) {install.packages("ggplot2")}
+library(twitteR)
+library(ROAuth)
+library(plyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+```
 
-Demo images* courtesy of Unsplash, a radtastic collection of CC0 (public domain) images
-you can use for pretty much whatever.
+##Authentication
+```{r}
+my.consumer.key = "duQPUERPEWDUzMrsfeBoCKFEt"
+my.consumer.secret = "aBjZ56UY9JPqUC0lEUJxMn20p0Z4r62XpAWsKmXyeMVWt6cDJb"
+my.access.token = "2189150074-g1RNhU5qbJl6sCHU7h2ZDmZKDYEUWdMhvTiLMVY"
+my.access.token.secret = "d94WyPVX4rbKlrxjlJu6QS7bRpdbQcUH0LR5z3KX78bdh"
+my_oauth <- setup_twitter_oauth(consumer_key = my.consumer.key, consumer_secret = my.consumer.secret, access_token = my.access.token, access_secret = my.access.token.secret)
+save(my_oauth, file = "my_oauth.Rdata")
+```
 
-(* = not included)
 
-AJ
-aj@lkn.io | @ajlkn
+```{r}
+neg = scan("GEOG533/Lectures/Lecture_W08_Twitter_Analytics/negative-words.txt", what="character", comment.char=";")
+pos = scan("GEOG533/Lectures/Lecture_W08_Twitter_Analytics/positive-words.txt", what="character", comment.char=";")
+```
+###Scoring Function
+```{r}
+score.sentiment = function(tweets, pos.words, neg.words)
+
+{
+scores = laply(tweets, function(tweet, pos.words, neg.words) {
+
+tweet = gsub('https://','',tweet) 
+tweet = gsub('http://','',tweet)
+tweet=gsub('[^[:graph:]]', ' ',tweet)
+tweet = gsub('[[:punct:]]', '', tweet)
+tweet = gsub('[[:cntrl:]]', '', tweet) 
+tweet = gsub('\\d+', '', tweet) 
+tweet=str_replace_all(tweet,"[^[:graph:]]", " ") 
+tweet = tolower(tweet) 
+
+word.list = str_split(tweet, '\\s+') 
+words = unlist(word.list)
+pos.matches = match(words, pos.words) 
+neg.matches = match(words, neg.words)
+pos.matches = !is.na(pos.matches) 
+neg.matches = !is.na(neg.matches)
+ 
+score = sum(pos.matches) - sum(neg.matches) 
+ 
+return(score)
+ 
+}, pos.words, neg.words )
+ 
+scores.df = data.frame(score=scores, text=tweets)
+ 
+return(scores.df)
+ 
+}
+
+```
+
+##Extracting Tweets from Steuben 
+```{r}
+#Steuben
+tweets = searchTwitter('Donald Trump', geocode='42.329592,-77.6594314,20mi',  n = 100)
+Tweets.text = laply(tweets,function(t)t$getText())
+SCanalysis = score.sentiment(Tweets.text, pos, neg)
+sum(SCanalysis$score)
+```
+###WordCloud for Steuben
+```{r}
+'42.329592,-77.6594314,20mi'
+tweets.text <- sapply(tweets, function(x) x$getText())
+tweets.text <- gsub("rt", "", tweets.text)
 
 
-Credits:
+tweets.text <- gsub("@\\w+", "", tweets.text)
 
-	Demo Images:
-		Unsplash (unsplash.com)
+tweets.text <- gsub("[[:punct:]]", "", tweets.text)
 
-	Icons:
-		Font Awesome (fortawesome.github.com/Font-Awesome)
+tweets.text <- gsub("http\\w+", "", tweets.text)
 
-	Other:
-		jQuery (jquery.com)
-		Misc. Sass functions (@HugoGiraudel)
-		Skel (skel.io)
+
+tweets.text <- gsub("[ |\t]{2,}", "", tweets.text)
+
+tweets.text <- gsub("^ ", "", tweets.text)
+
+tweets.text <- gsub(" $", "", tweets.text)
+ 
+tweets.text <- tolower(tweets.text)
+
+
+
+if(!require(tm)) {install.packages("tm")}
+library(tm)
+
+tweets.text.corpus <- Corpus(VectorSource(tweets.text))
+
+tweets.text.corpus <- tm_map(tweets.text.corpus, function(x) removeWords(x,stopwords()))
+if(!require(wordcloud)) {install.packages("wordcloud")}
+library(wordcloud)
+
+
+
+wordcloud(tweets.text.corpus,min.freq = 2, scale=c(7,0.5),colors=brewer.pal(8, "Dark2"),  random.color= TRUE, random.order = FALSE, max.words = 150)
+```
+
+##Extracting Tweets from Broome
+```{r}
+#Broome
+tweets = searchTwitter('Donald Trump', geocode='29.8174,-95.6814,20mi',  n = 100)
+Tweets.text = laply(tweets,function(t)t$getText())
+BCanalysis = score.sentiment(Tweets.text, pos, neg)
+sum(BCanalysis$score)
+```
+###WordCloud for Broome
+```{r}
+tweets.text <- sapply(tweets, function(x) x$getText())
+tweets.text <- gsub("rt", "", tweets.text)
+
+
+tweets.text <- gsub("@\\w+", "", tweets.text)
+
+tweets.text <- gsub("[[:punct:]]", "", tweets.text)
+
+tweets.text <- gsub("http\\w+", "", tweets.text)
+
+
+tweets.text <- gsub("[ |\t]{2,}", "", tweets.text)
+
+tweets.text <- gsub("^ ", "", tweets.text)
+
+tweets.text <- gsub(" $", "", tweets.text)
+ 
+tweets.text <- tolower(tweets.text)
+
+
+
+if(!require(tm)) {install.packages("tm")}
+library(tm)
+
+tweets.text.corpus <- Corpus(VectorSource(tweets.text))
+
+tweets.text.corpus <- tm_map(tweets.text.corpus, function(x) removeWords(x,stopwords()))
+if(!require(wordcloud)) {install.packages("wordcloud")}
+library(wordcloud)
+
+
+
+wordcloud(tweets.text.corpus,min.freq = 2, scale=c(7,0.5),colors=brewer.pal(8, "Dark2"),  random.color= TRUE, random.order = FALSE, max.words = 150)
+```
+
+##Extracting Tweets from Queens 
+```{r}
+#queens
+tweets = searchTwitter('Donald Trump', geocode='40.660787,-73.738861,20mi',  n = 100)
+Tweets.text = laply(tweets,function(t)t$getText())
+QCanalysis = score.sentiment(Tweets.text, pos, neg)
+sum(QCanalysis$score)
+```
+###WordCloud for Queens
+```{r}
+tweets.text <- sapply(tweets, function(x) x$getText())
+tweets.text <- gsub("rt", "", tweets.text)
+
+
+tweets.text <- gsub("@\\w+", "", tweets.text)
+
+tweets.text <- gsub("[[:punct:]]", "", tweets.text)
+
+tweets.text <- gsub("http\\w+", "", tweets.text)
+
+
+tweets.text <- gsub("[ |\t]{2,}", "", tweets.text)
+
+tweets.text <- gsub("^ ", "", tweets.text)
+
+tweets.text <- gsub(" $", "", tweets.text)
+ 
+tweets.text <- tolower(tweets.text)
+
+
+
+if(!require(tm)) {install.packages("tm")}
+library(tm)
+
+tweets.text.corpus <- Corpus(VectorSource(tweets.text))
+
+tweets.text.corpus <- tm_map(tweets.text.corpus, function(x) removeWords(x,stopwords()))
+if(!require(wordcloud)) {install.packages("wordcloud")}
+library(wordcloud)
+
+
+
+wordcloud(tweets.text.corpus,min.freq = 2, scale=c(7,0.5),colors=brewer.pal(8, "Dark2"),  random.color= TRUE, random.order = FALSE, max.words = 150)
+```
+##Extracting Tweets from Dutchess
+```{r}
+#Dutchess
+tweets = searchTwitter('Donald Trump', geocode='41.713453,-73.798813,20mi',  n = 100)
+Tweets.text = laply(tweets,function(t)t$getText())
+DCanalysis = score.sentiment(Tweets.text, pos, neg)
+sum(DCanalysis$score)
+```
+##WordCloud for Dutchess
+```{r}
+tweets.text <- sapply(tweets, function(x) x$getText())
+tweets.text <- gsub("rt", "", tweets.text)
+
+
+tweets.text <- gsub("@\\w+", "", tweets.text)
+
+tweets.text <- gsub("[[:punct:]]", "", tweets.text)
+
+tweets.text <- gsub("http\\w+", "", tweets.text)
+
+
+tweets.text <- gsub("[ |\t]{2,}", "", tweets.text)
+
+tweets.text <- gsub("^ ", "", tweets.text)
+
+tweets.text <- gsub(" $", "", tweets.text)
+ 
+tweets.text <- tolower(tweets.text)
+
+
+
+if(!require(tm)) {install.packages("tm")}
+library(tm)
+
+tweets.text.corpus <- Corpus(VectorSource(tweets.text))
+
+tweets.text.corpus <- tm_map(tweets.text.corpus, function(x) removeWords(x,stopwords()))
+if(!require(wordcloud)) {install.packages("wordcloud")}
+library(wordcloud)
+
+
+
+wordcloud(tweets.text.corpus,min.freq = 2, scale=c(7,0.5),colors=brewer.pal(8, "Dark2"),  random.color= TRUE, random.order = FALSE, max.words = 150)
+```
